@@ -1,0 +1,134 @@
+version: '2'
+
+networks:
+  fabart:
+
+services:
+  orderer.fabart.example.com:
+    image: hyperledger/fabric-orderer:x86_64-1.0.0
+    container_name: orderer.fabart.example.com
+    environment:
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+    volumes:
+      - ./orderer/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
+      - ./crypto-config/ordererOrganizations/fabart.example.com/orderers/orderer.fabart.example.com/msp:/var/hyperledger/orderer/msp
+    command: orderer
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    ports:
+      - 7050:7050
+    networks:
+      - fabart
+
+  peer0.org1.example.com:
+    container_name: peer0.org1.example.com
+    image: hyperledger/fabric-peer:x86_64-1.0.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabart_fabart
+      - CORE_PEER_ADDRESSAUTODETECT=true
+      - CORE_PEER_ID=peer0.org1.example.com
+      - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org1.example.com:7051
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    ports:
+      - 7051:7051
+      - 7053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/Org1.com/peers/peer0.Org1.com/msp:/etc/hyperledger/msp/peer
+        # - ./crypto-config/peerOrganizations/Org1.com/users:/etc/hyperledger/msp/users
+        # - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.fabart.example.com
+      - couchdb
+    networks:
+      - fabart
+
+  peer0.org2.example.com:
+    container_name: peer0.org2.example.com
+    image: hyperledger/fabric-peer:x86_64-1.0.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabart_fabart
+      - CORE_PEER_ADDRESSAUTODETECT=true
+      - CORE_PEER_ID=peer0.org2.example.com
+      - CORE_PEER_ADDRESS=peer0.org2.example.com:7051
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org2.example.com:7051
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    ports:
+      - 10051:7051
+      - 10053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/Org2.com/peers/peer0.Org2.com/msp:/etc/hyperledger/msp/peer
+        # - ./crypto-config/peerOrganizations/Org1.com/users:/etc/hyperledger/msp/users
+        # - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.fabart.example.com
+      - couchdb
+    networks:
+      - fabart
+
+  cli.org1:
+    container_name: cli.org1
+    environment:
+      - CORE_PEER_ID=cli.org1.com
+      - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/users/Admin@Org1.com/msp
+      - GOPATH=/opt/gopath
+    depends_on:
+      - orderer.fabart.example.com
+      - peer0.org1.example.com
+    networks:
+      - fabart
+    tty: true
+    image: hyperledger/fabric-tools:x86_64-1.0.0
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    volumes:
+      - ./orderer/:/opt/gopath/src/github.com/hyperledger/fabric/peer/orderer
+      - ./chaincode:/opt/gopath/src/
+      - ./channels/:/opt/gopath/src/github.com/hyperledger/fabric/peer/channels
+      - ./crypto-config/peerOrganizations/Org1.com:/etc/hyperledger/msp
+
+  cli.org2:
+    container_name: cli.org2
+    environment:
+      - CORE_PEER_ID=cli.org2.com
+      - CORE_PEER_ADDRESS=peer0.org2.example.com:7051
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/users/Admin@Org2.com/msp
+      - GOPATH=/opt/gopath
+    depends_on:
+      - orderer.fabart.example.com
+      - peer0.org2.example.com
+    networks:
+      - fabart
+    tty: true
+    image: hyperledger/fabric-tools:x86_64-1.0.0
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    volumes:
+      - ./orderer/:/opt/gopath/src/github.com/hyperledger/fabric/peer/orderer
+      - ./chaincode:/opt/gopath/src/
+      - ./channels/:/opt/gopath/src/github.com/hyperledger/fabric/peer/channels
+      - ./crypto-config/peerOrganizations/Org2.com:/etc/hyperledger/msp
+
+  couchdb:
+    container_name: couchdb
+    image: hyperledger/fabric-couchdb:x86_64-1.0.0
+    environment:
+      DB_URL: http://localhost:5984/
+    ports:
+      - "5984:5984"
+    networks:
+      - fabart
